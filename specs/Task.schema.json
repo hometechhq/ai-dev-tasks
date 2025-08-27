@@ -1,22 +1,144 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/specs/Task.schema.json",
+  "title": "AI Dev Task",
+  "description": "Canonical machine-readable task format for AI agent orchestration.",
   "type": "object",
-  "required": ["id", "title", "status", "priority", "type", "inputs"],
+  "required": [
+    "id",
+    "title",
+    "status",
+    "priority",
+    "type",
+    "inputs"
+  ],
+  "additionalProperties": false,
   "properties": {
-    "id": {"type":"string"},
-    "parentId": {"type":["string","null"]},
-    "title": {"type":"string"},
-    "description": {"type":"string"},
-    "status": {"enum":["Planned","InProgress","Review","Done","Blocked"]},
-    "priority": {"enum":["P0","P1","P2","P3"]},
-    "type": {"enum":["Code","Docs","Test","Design","Infra","Research","Refactor"]},
-    "deps": {"type":"array","items":{"type":"string"}},
-    "assignee": {"type":"string"},
-    "labels": {"type":"array","items":{"type":"string"}},
-    "inputs": {"type":"object"},
-    "outputs": {"type":"object"},
-    "artifacts": {"type":"array","items":{"type":"string"}},
-    "checklist": {"type":"array","items":{"type":"string"}},
-    "acceptanceCriteria": {"type":"array","items":{"type":"string"}}
-  }
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable task identifier (e.g., TASK-001 or UUID)."
+    },
+    "parentId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Optional parent task id."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Planned",
+        "InProgress",
+        "Review",
+        "Done",
+        "Blocked"
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ]
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "Code",
+        "Docs",
+        "Test",
+        "Design",
+        "Infra",
+        "Research",
+        "Refactor"
+      ]
+    },
+    "deps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "assignee": {
+      "type": "string"
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "inputs": {
+      "type": "object",
+      "description": "Loose input parameters needed to execute the task."
+    },
+    "outputs": {
+      "type": "object",
+      "description": "Produced values/paths after completion.",
+      "default": {}
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "checklist": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  },
+  "examples": [
+    {
+      "id": "TASK-001",
+      "title": "Add /health endpoint",
+      "description": "Expose GET /health returning {status:'ok'}",
+      "status": "Planned",
+      "priority": "P2",
+      "type": "Code",
+      "deps": [],
+      "labels": [
+        "backend",
+        "api"
+      ],
+      "inputs": {
+        "path": "/health"
+      },
+      "outputs": {},
+      "acceptanceCriteria": [
+        "200 OK",
+        "JSON body includes status:'ok'"
+      ],
+      "checklist": [
+        "unit test added",
+        "route registered"
+      ]
+    }
+  ]
 }
