@@ -1,0 +1,22 @@
+{
+  "$id": "https://example.com/specs/Task.schema.json",
+  "type": "object",
+  "required": ["id", "title", "status", "priority", "type", "inputs"],
+  "properties": {
+    "id": {"type":"string"},
+    "parentId": {"type":["string","null"]},
+    "title": {"type":"string"},
+    "description": {"type":"string"},
+    "status": {"enum":["Planned","InProgress","Review","Done","Blocked"]},
+    "priority": {"enum":["P0","P1","P2","P3"]},
+    "type": {"enum":["Code","Docs","Test","Design","Infra","Research","Refactor"]},
+    "deps": {"type":"array","items":{"type":"string"}},
+    "assignee": {"type":"string"},
+    "labels": {"type":"array","items":{"type":"string"}},
+    "inputs": {"type":"object"},
+    "outputs": {"type":"object"},
+    "artifacts": {"type":"array","items":{"type":"string"}},
+    "checklist": {"type":"array","items":{"type":"string"}},
+    "acceptanceCriteria": {"type":"array","items":{"type":"string"}}
+  }
+}
