@@ -1,0 +1,9 @@
+# stateful runtime
+state/
+!.gitkeep
+
+# node / sample app
+node_modules/
+coverage/
+dist/
+.env
