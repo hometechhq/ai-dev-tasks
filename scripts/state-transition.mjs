@@ -1,30 +1,25 @@
-// scripts/state-transition.mjs
-import { readTasks, writeTasks, canTransition } from './state-common.mjs';
+import fs from 'node:fs';
 
-const [, , taskId, newStatus] = process.argv;
-if (!taskId || !newStatus) {
-  console.error('Usage: node scripts/state-transition.mjs <taskId> <newStatus>');
+const ALLOWED = {
+  Planned: ['InProgress', 'Blocked'],
+  InProgress: ['Review', 'Blocked'],
+  Review: ['Done', 'InProgress'],
+  Blocked: ['InProgress'],
+  Done: []
+};
+
+const FILE='state/tasks.jsonl';
+const [,, id, to] = process.argv;
+
+if (!id || !to) {
+  console.error('usage: node scripts/state-transition.mjs <TASK_ID> <TO_STATUS>');
   process.exit(1);
 }
 
-const tasks = readTasks();
-const idx = tasks.findIndex(t => t.id === taskId);
-if (idx === -1) {
-  console.error(`Task not found: ${taskId}`);
-  process.exit(1);
-}
-
-const current = tasks[idx];
-if (current.status === newStatus) {
-  console.log(JSON.stringify({ taskId, status: newStatus, changed: false, reason: 'No-op' }));
-  process.exit(0);
-}
-
-if (!canTransition(current.status, newStatus)) {
-  console.error(`Illegal transition ${current.status} -> ${newStatus}`);
-  process.exit(2);
-}
-
-tasks[idx] = { ...current, status: newStatus };
-writeTasks(tasks);
-console.log(JSON.stringify({ taskId, status: newStatus, changed: true }));
+const lines = fs.readFileSync(FILE, 'utf8').trim().split('\n').filter(Boolean);
+const tasks = lines.map(JSON.parse);
+const t = tasks.find(x => x.id===id);
+if(!t) throw new Error(`Task ${id} not found`);
+if(!ALLOWED[t.status]?.includes(to)) throw new Error(`Illegal ${t.status} -> ${to}`);
+t.status = to;
+fs.writeFileSync(FILE, tasks.map(x=>JSON.stringify(x)).join('\n')+'\n', 'utf8');

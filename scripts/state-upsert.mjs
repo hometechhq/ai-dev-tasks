@@ -1,32 +1,19 @@
-// scripts/state-upsert.mjs
-import { readTasks, writeTasks, upsertTasks } from './state-common.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+const FILE = path.resolve('state/tasks.jsonl');
 
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', chunk => data += chunk);
-    process.stdin.on('end', () => resolve(data));
-    process.stdin.on('error', reject);
-  });
+export function upsertTasks(tasks) {
+  fs.mkdirSync(path.dirname(FILE), { recursive: true });
+  const existing = fs.existsSync(FILE)
+    ? fs.readFileSync(FILE, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse)
+    : [];
+  const map = new Map(existing.map(t => [t.id, t]));
+  for (const t of tasks) map.set(t.id, { ...(map.get(t.id) || {}), ...t });
+  const out = Array.from(map.values()).map(t => JSON.stringify(t)).join('\n') + '\n';
+  fs.writeFileSync(FILE, out, 'utf8');
 }
 
-const raw = await readStdin();
-if (!raw.trim()) {
-  console.error('No input on stdin. Provide a JSON task or array of tasks.');
-  process.exit(1);
+if (process.argv[2]) {
+  const tasks = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+  upsertTasks(tasks);
 }
-
-let incoming;
-try {
-  const parsed = JSON.parse(raw);
-  incoming = Array.isArray(parsed) ? parsed : [parsed];
-} catch (e) {
-  console.error('Input is not valid JSON:', e.message);
-  process.exit(1);
-}
-
-const existing = readTasks();
-const next = upsertTasks(existing, incoming);
-writeTasks(next);
-console.log(JSON.stringify({ updated: incoming.length, total: next.length }));

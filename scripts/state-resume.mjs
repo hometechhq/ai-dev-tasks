@@ -1,19 +1,13 @@
-// scripts/state-resume.mjs
-import { readTasks, depsSatisfied } from './state-common.mjs';
+import fs from 'node:fs';
+const FILE = 'state/tasks.jsonl';
 
-const tasks = readTasks();
-
-const prioRank = { P0: 0, P1: 1, P2: 2, P3: 3 };
-function rank(t) { return prioRank[t.priority] ?? 99; }
-
-const candidates = tasks
-  .filter(t => t.status === 'Planned')
-  .filter(t => depsSatisfied(tasks, t))
-  .sort((a, b) => rank(a) - rank(b));
-
-if (candidates.length === 0) {
-  console.log(JSON.stringify({ message: 'No runnable tasks. Either none Planned or deps unmet.' }));
-  process.exit(0);
+function nextRunnable() {
+  if (!fs.existsSync(FILE)) return null;
+  const tasks = fs.readFileSync(FILE, 'utf8').trim().split('\n').filter(Boolean).map(JSON.parse);
+  const done = new Set(tasks.filter(t => t.status === 'Done').map(t => t.id));
+  const blockedDeps = t => (t.deps || []).some(d => !done.has(d));
+  return tasks.find(t => t.status === 'Planned' && !blockedDeps(t)) || null;
 }
 
-console.log(JSON.stringify(candidates[0], null, 2));
+const t = nextRunnable();
+process.stdout.write(JSON.stringify({ task: t }, null, 2));
