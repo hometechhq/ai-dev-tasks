@@ -1,29 +1,309 @@
 {
   "$id": "https://hometechhq.github.io/ai-dev-tasks/specs/Prd.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "PRD",
+  "title": "PRD (canonical)",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "featureName",
+    "featureSlug",
+    "summary",
     "context",
     "goals",
-    "acceptanceCriteria"
+    "nonGoals",
+    "functionalRequirements",
+    "nfr",
+    "data",
+    "apis",
+    "repoPaths",
+    "observability",
+    "successMetrics",
+    "rolloutPlan",
+    "openQuestions"
   ],
   "properties": {
     "featureName": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
+    },
+    "featureSlug": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
     },
     "context": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "goals": {
       "type": "array",
+      "minItems": 1,
       "items": {
         "type": "string"
       }
     },
     "nonGoals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "userStories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "story"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "story": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "P3"
+            ]
+          }
+        }
+      }
+    },
+    "functionalRequirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "acceptanceCriteria"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "acceptanceCriteria": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "nfr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "performance",
+        "reliability",
+        "security",
+        "privacy"
+      ],
+      "properties": {
+        "performance": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "p95_ms": {
+              "type": "number"
+            },
+            "p99_ms": {
+              "type": "number"
+            }
+          }
+        },
+        "reliability": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "uptime_target": {
+              "type": "string"
+            },
+            "rto_seconds": {
+              "type": "number"
+            },
+            "rpo_seconds": {
+              "type": "number"
+            }
+          }
+        },
+        "security": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requirements": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "privacy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dataClasses": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "retentionDays": {
+              "type": "number"
+            }
+          }
+        },
+        "accessibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "wcag": {
+              "type": "string"
+            }
+          }
+        },
+        "internationalization": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "locales": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "fields"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "type",
+                    "required"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "notes": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "apis": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "method",
+          "path"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "auth": {
+            "type": "string"
+          },
+          "rateLimitPerMin": {
+            "type": "number"
+          },
+          "request": {
+            "type": "object"
+          },
+          "response": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "repoPaths": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "purpose"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "techStack": {
       "type": "array",
       "items": {
         "type": "string"
@@ -35,16 +315,144 @@
         "type": "string"
       }
     },
-    "acceptanceCriteria": {
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "successCondition": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "level": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "traces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "successMetrics": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "object",
+        "required": [
+          "metric",
+          "target"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "metric": {
+            "type": "string"
+          },
+          "baseline": {
+            "type": "number"
+          },
+          "target": {
+            "type": "number"
+          },
+          "window": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rolloutPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "phases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "risk"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "risk": {
+            "type": "string"
+          },
+          "mitigation": {
+            "type": "string"
+          }
+        }
       }
     },
     "openQuestions": {
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
       }
     }
   }
