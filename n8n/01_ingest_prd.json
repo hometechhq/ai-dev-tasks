@@ -1,0 +1,74 @@
+{
+  "name": "01_ingest_prd",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "Manual Trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "schema": {
+          "value": "file",
+          "file": "specs/Prd.schema.json"
+        },
+        "data": "={{$json[\"PRD\"]}}"
+      },
+      "id": "Validate PRD",
+      "name": "Validate PRD",
+      "type": "n8n-nodes-base.jsonSchema",
+      "typeVersion": 1,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fileName": "state/tasks.jsonl",
+        "fileContent": "={{$json[\"PRD\"]}}",
+        "options": {
+          "append": true
+        }
+      },
+      "id": "Persist",
+      "name": "Persist",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        780,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate PRD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate PRD": {
+      "main": [
+        [
+          {
+            "node": "Persist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
