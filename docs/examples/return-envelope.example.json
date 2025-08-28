@@ -1,1 +1,50 @@
-
+{
+  "taskId": "NOTIFICATIONS-001",
+  "status": "Review",
+  "actions": [
+    {
+      "tool": "fs.read",
+      "args": {
+        "path": "services/notifications/api.ts"
+      },
+      "resultRef": "r1"
+    },
+    {
+      "tool": "fs.apply_patch",
+      "args": {
+        "path": "services/notifications/api.ts",
+        "unifiedDiff": "--- a/services/notifications/api.ts\n+++ b/services/notifications/api.ts\n@@\n+export async function listNotifications(limit = 50) {\n+  // implementation...\n+}\n"
+      },
+      "resultRef": "p1"
+    },
+    {
+      "tool": "fs.apply_patch",
+      "args": {
+        "path": "apps/web/src/pages/notifications.test.ts",
+        "unifiedDiff": "--- a/apps/web/src/pages/notifications.test.ts\n+++ b/apps/web/src/pages/notifications.test.ts\n@@\n+it('returns <= 50 items newest first', async () => { /* ... */ });\n"
+      },
+      "resultRef": "p2"
+    },
+    {
+      "tool": "test.run",
+      "args": {},
+      "resultRef": "t1"
+    },
+    {
+      "tool": "github.pr_create",
+      "args": {
+        "title": "feat(notifications): NOTIFICATIONS-001 list endpoint",
+        "head": "feat/notifications-notifications-001",
+        "base": "main",
+        "body": "Implements FR-001; adds tests."
+      },
+      "resultRef": "pr1"
+    }
+  ],
+  "artifacts": [
+    "junit.xml",
+    "coverage/lcov.info"
+  ],
+  "notes": "Implements FR-001 with minimal diff; adds unit test; opens draft PR.",
+  "next": "None"
+}
