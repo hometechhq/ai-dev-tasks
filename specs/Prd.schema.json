@@ -1,0 +1,51 @@
+{
+  "$id": "https://hometechhq.github.io/ai-dev-tasks/specs/Prd.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PRD",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "featureName",
+    "context",
+    "goals",
+    "acceptanceCriteria"
+  ],
+  "properties": {
+    "featureName": {
+      "type": "string"
+    },
+    "context": {
+      "type": "string"
+    },
+    "goals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "nonGoals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "openQuestions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

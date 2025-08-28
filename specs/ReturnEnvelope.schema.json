@@ -1,0 +1,72 @@
+{
+  "$id": "https://hometechhq.github.io/ai-dev-tasks/specs/ReturnEnvelope.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReturnEnvelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "taskId",
+    "status",
+    "actions"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "InProgress",
+        "Review",
+        "Blocked",
+        "Done"
+      ]
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "tool",
+          "args"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": [
+              "fs.read",
+              "fs.write",
+              "fs.apply_patch",
+              "github.pr_create",
+              "github.comment_create",
+              "test.run",
+              "eval.semantic"
+            ]
+          },
+          "args": {
+            "type": "object"
+          },
+          "resultRef": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "next": {
+      "type": "string"
+    }
+  }
+}
