@@ -1,1 +1,21 @@
-
+openapi: 3.1.0
+info:
+  title: Semantic Eval
+  version: 1.0.0
+paths:
+  /eval/semantic:
+    post:
+      operationId: eval.semantic
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rubricPath, targetPaths]
+              properties:
+                rubricPath: { type: string }
+                targetPaths: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: "OK; returns JSON report {pass:boolean, notes:string}"

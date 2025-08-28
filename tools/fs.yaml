@@ -1,1 +1,49 @@
-
+openapi: 3.1.0
+info:
+  title: Filesystem (orchestrator-bound)
+  version: 1.0.0
+paths:
+  /fs/read:
+    post:
+      operationId: fs.read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path: { type: string }
+      responses:
+        "200": { description: OK }
+  /fs/write:
+    post:
+      operationId: fs.write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, contents]
+              properties:
+                path: { type: string }
+                contents: { type: string }
+      responses:
+        "200": { description: OK }
+  /fs/apply_patch:
+    post:
+      operationId: fs.apply_patch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, unifiedDiff]
+              properties:
+                path: { type: string }
+                unifiedDiff: { type: string }
+      responses:
+        "200": { description: OK }
