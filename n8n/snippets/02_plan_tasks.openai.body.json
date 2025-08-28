@@ -1,0 +1,13 @@
+{
+  "model": "gpt-5-nano",
+  "messages": [
+    {
+      "role": "system",
+      "content": "@docs/prompts/system.md"
+    },
+    {
+      "role": "user",
+      "content": "@docs/prompts/generate-tasks.agent.md"
+    }
+  ]
+}
