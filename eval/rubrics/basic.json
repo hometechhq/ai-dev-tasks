@@ -1,0 +1,8 @@
+{
+  "name": "Basic Quality Rubric",
+  "checks": [
+    "Clear function names and small functions",
+    "Unit tests cover happy and error paths",
+    "No secrets or credentials committed"
+  ]
+}
