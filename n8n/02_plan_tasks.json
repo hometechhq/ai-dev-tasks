@@ -1,0 +1,100 @@
+{
+  "name": "02_plan_tasks",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "Trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ PRD_JSON: $json.PRD }];"
+      },
+      "id": "Prep",
+      "name": "Function (prep)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "options": {},
+        "method": "POST",
+        "jsonParameters": true,
+        "sendHeaders": true,
+        "headerParametersJson": "{\"Authorization\":\"Bearer {{$env.OPENAI_API_KEY}}\",\"Content-Type\":\"application/json\"}",
+        "bodyParametersJson": "{\"model\": \"gpt-5-nano\", \"response_format\": {\"type\": \"json_object\"}, \"messages\": [{\"role\": \"system\", \"content\": \"@docs/prompts/system.md\"}, {\"role\": \"user\", \"content\": \"From this PRD (JSON), generate a minimal set of tasks as a JSON array of Task objects conforming to /specs/Task.schema.json. PRD: {{$json.PRD_JSON}}\"}]}"
+      },
+      "id": "LLM Plan",
+      "name": "HTTP (OpenAI nano)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "schema": {
+          "value": "file",
+          "file": "specs/Task.schema.json"
+        },
+        "data": "={{$json[\"choices\"][0][\"message\"][\"content\"]}}"
+      },
+      "id": "Validate Tasks",
+      "name": "JSON Schema (array each item)",
+      "type": "n8n-nodes-base.jsonSchema",
+      "typeVersion": 1,
+      "position": [
+        920,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Function (prep)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function (prep)": {
+      "main": [
+        [
+          {
+            "node": "HTTP (OpenAI nano)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP (OpenAI nano)": {
+      "main": [
+        [
+          {
+            "node": "JSON Schema (array each item)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
