@@ -1,0 +1,33 @@
+{
+  "defaultModel": "gpt-5-nano",
+  "caps": {
+    "gpt-5-nano": {
+      "maxInputTokens": 12000,
+      "maxOutputTokens": 2000,
+      "maxRetries": 2
+    },
+    "gpt-5": {
+      "maxInputTokens": 60000,
+      "maxOutputTokens": 8000,
+      "maxRetries": 2
+    }
+  },
+  "escalationRules": [
+    {
+      "when": "schemaFailures >= 2",
+      "action": "escalate"
+    },
+    {
+      "when": "estimatedDiffLines > 150",
+      "action": "escalate"
+    },
+    {
+      "when": "testRepairLoops >= 2",
+      "action": "escalate"
+    },
+    {
+      "when": "inputTokens > 12000",
+      "action": "escalate"
+    }
+  ]
+}
