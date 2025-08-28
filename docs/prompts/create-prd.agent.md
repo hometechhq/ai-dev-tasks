@@ -1,10 +1,13 @@
 # System: @docs/prompts/system.md
 
 # User
-Create a PRD in **JSON** for the described feature. Conform to `/specs/Prd.schema.json`.
+Create a PRD as **JSON** matching `/specs/Prd.schema.json`.
+- Ask up to 5 clarifying questions if essential; otherwise proceed.
+- Populate: featureName, context, goals[], nonGoals[], constraints[], acceptanceCriteria[], openQuestions[].
+- Each acceptance criterion should be testable (“verified by unit/integration test X”).
 
-Input context (verbatim):
+Input feature brief (verbatim):
 {{FEATURE_CONTEXT}}
 
 # Output
-JSON only matching `/specs/Prd.schema.json`.
+{ PRD } // JSON only, schema-conformant
