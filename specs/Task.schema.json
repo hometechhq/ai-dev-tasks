@@ -113,32 +113,5 @@
       },
       "default": []
     }
-  },
-  "examples": [
-    {
-      "id": "TASK-001",
-      "title": "Add /health endpoint",
-      "description": "Expose GET /health returning {status:'ok'}",
-      "status": "Planned",
-      "priority": "P2",
-      "type": "Code",
-      "deps": [],
-      "labels": [
-        "backend",
-        "api"
-      ],
-      "inputs": {
-        "path": "/health"
-      },
-      "outputs": {},
-      "acceptanceCriteria": [
-        "200 OK",
-        "JSON body includes status:'ok'"
-      ],
-      "checklist": [
-        "unit test added",
-        "route registered"
-      ]
-    }
-  ]
+  }
 }
