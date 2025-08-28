@@ -1,0 +1,17 @@
+{
+  "generated_at": "2025-08-28T22:44:14.270626Z",
+  "files": [
+    {
+      "path": "create-prd.md",
+      "sha256": "ba75c27db1534889d1a0ba70ad529c6461be786ddbfbdc55e5053e123e180ca0"
+    },
+    {
+      "path": "specs/Prd.schema.json",
+      "sha256": "af64dcdfbd6c59a66a0999e85cc1a312c391ba8560a311fc87fdd04c0e6cd895"
+    },
+    {
+      "path": "n8n/snippets/extract-prd-json.function.js",
+      "sha256": "000f4b3aab30d1ec2000842d1d94deee1f85a8295c130314569f13d91342896b"
+    }
+  ]
+}
