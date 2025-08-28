@@ -1,0 +1,16 @@
+{
+  "model": "gpt-5-nano",
+  "response_format": {
+    "type": "json_object"
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "@docs/prompts/system.md"
+    },
+    {
+      "role": "user",
+      "content": "You are given a Task and a PRD. Advance the task with the smallest viable change and output a single Return Envelope JSON.\n\nPRD (JSON):\n{{PRD_JSON}}\n\nTask (JSON):\n{{TASK_JSON}}\n\nContext (optional snippets):\n{{CONTEXT_SNIPPET}}\n\nFollow @docs/prompts/process-task-list.agent.md strictly. Output JSON only."
+    }
+  ]
+}
