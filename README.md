@@ -1,274 +1,199 @@
-# AI Dev Tasks — Agent‑Aligned (n8n + OpenAI GPT‑5)
+# AI Dev Tasks
 
-A lightweight, repeatable workflow for planning, executing, and shipping features with AI—usable by humans in AI IDEs and by autonomous agents (n8n + OpenAI GPT‑5).
-
-- **Human flow:** `create-prd.md → generate-tasks.md → process-task-list.md`
-- **Agent flow:** Same stages, plus machine‑readable tasks, state, tool contracts, quality gates, and budgets.
+Structured, **n8n-orchestrated** multi-agent development pipeline.  
+Human idea → **PRD (JSON)** → **Task Plan (JSON)** → **Implementor tasks (Return Envelopes)** → **Review & CI gates** → Merge.
 
 ---
 
-## Why this exists
+## 1) Architecture at a glance
 
-Large, single prompts are brittle. This repo enforces **small, checkable steps** with clear success criteria. For agents, we add:
-
-- A **Task JSON Schema** the model must output
-- A **Return Envelope** for every agent action
-- **State & transitions** so runs are resumable/idempotent
-- **Tool contracts (OpenAPI)** for GitHub, filesystem, tests, evals
-- **Quality gates (CI)** before merge
-- **Budgets/rate‑limits** to keep costs safe and predictable
-
----
-
-## Repository layout
-
-```text
-/
-├─ create-prd.md
-├─ generate-tasks.md
-├─ process-task-list.md
-├─ specs/
-│  ├─ Task.schema.json
-│  ├─ ReturnEnvelope.schema.json
-│  └─ Prd.schema.json
-├─ docs/
-│  ├─ agent-contract.md
-│  └─ prompts/
-│     ├─ system.md
-│     ├─ create-prd.agent.md
-│     ├─ generate-tasks.agent.md
-│     └─ process-task-list.agent.md
-├─ tools/
-│  ├─ github.yaml
-│  ├─ fs.yaml
-│  ├─ test.yaml
-│  └─ eval.yaml
-├─ n8n/
-│  ├─ 01_ingest_prd.json
-│  ├─ 02_plan_tasks.json
-│  ├─ 03_execute_next_task.json
-│  ├─ 04_quality_gates.json
-│  └─ 05_human_review.json
-├─ state/
-│  └─ tasks.jsonl           # runtime (gitignored)
-├─ scripts/
-│  ├─ state-upsert.mjs
-│  ├─ state-resume.mjs
-│  └─ state-transition.mjs
-├─ config/budget.json
-├─ .github/workflows/agent-checks.yml
-├─ eval/rubrics/basic.json
-└─ sample-app/ (tiny project for CI checks)
+```mermaid
+flowchart TD
+    A[Human Feature Idea] -->|planner.prd.md| B[PRD JSON<br/>(/specs/Prd.schema.json)]
+    B -->|planner.tasks.md| C[Task Plan JSON<br/>(/specs/Plan.schema.json)]
+    C -->|manager.cycle.md| D{Next Pending Task?}
+    D -- yes --> E[Implementor Agent<br/>implementor.task.md]
+    E --> F[[ReturnEnvelope JSON<br/>(/specs/ReturnEnvelope.schema.json)]]
+    F --> G[Reviewer Agent<br/>reviewer.task.md]
+    G -->|approved| H[Commit per Task<br/>feature/<prd> branch]
+    G -->|needs changes| E
+    D -- no --> I[Plan Completed]
+    H --> J[CI Gates: lint/test/build/eval]
+    J -->|pass| K[Merge to main]
+    J -->|fail| E
 ```
 
 ---
 
-## Quickstart
+## 2) Orchestrated sequence (per task)
 
-### Requirements
-- n8n (cloud or self‑hosted), Node 18+
-- OpenAI API key with access to **GPT‑5** models
-- GitHub repo + PAT (scopes: `repo`, `workflow` recommended)
+```mermaid
+sequenceDiagram
+    participant N as n8n Orchestrator
+    participant M as Manager Agent
+    participant I as Implementor Agent
+    participant R as Reviewer Agent
+    participant GH as GitHub
 
-### 1) Human‑in‑the‑loop (any AI IDE)
-1. Open your IDE agent (Cursor, Claude Code, etc.).
-2. Reference the prompts:  
-   - Create PRD with `@create-prd.md`  
-   - Plan with `@generate-tasks.md`  
-   - Execute with `@process-task-list.md`
-3. Approve/iterate task‑by‑task.
-
-### 2) Agent‑mode (n8n)
-1. Import `/n8n/*.json` (workflows).
-2. Set credentials: `OPENAI_API_KEY`, `GITHUB_TOKEN`, `REPO_OWNER`, `REPO_NAME`, `DEFAULT_BRANCH`.
-3. Run **02_plan_tasks** → generates/validates Tasks (JSON) and upserts into `/state/tasks.jsonl`.
-4. Run **03_execute_next_task** → executes next runnable Task, returns a **Return Envelope**, opens a **draft PR**.
-5. **04_quality_gates** must pass before **05_human_review** merges.
-
----
-
-## Model routing (nano‑first)
-
-By default, all steps use **gpt‑5‑nano**. The router escalates to **gpt‑5** only when:
-
-- schema validation fails twice,
-- estimated diff > 150 lines,
-- test‑repair loops ≥ 2,
-- input token estimate > 12k for the step.
-
-See [`config/budget.json`](config/budget.json).
+    N->>M: Provide PRD + Plan + State
+    M-->>N: next_task_id + action=dispatch_implementor
+    N->>I: task_json + repo_context + branch
+    I-->>N: ReturnEnvelope (diff + files[] + tests)
+    N->>R: envelope_json + task_json (+ PRD excerpt)
+    R-->>N: verdict (approved/needs_changes/rejected)
+    alt approved
+        N->>GH: Commit (one commit per task) on feature/<prd>
+        N->>GH: Run CI (lint/tests/build/eval)
+        GH-->>N: CI status
+    else needs_changes/rejected
+        N->>I: Retry or escalate model
+    end
+```
 
 ---
 
-## Architecture
+## 3) State & idempotency (task lifecycle)
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> in_progress: dispatch implementor
+    in_progress --> completed: tests & review pass
+    in_progress --> failed: tests fail or error
+    in_progress --> blocked: deps unmet / constraints
+    pending --> skipped: already satisfied (idempotent check)
+    failed --> pending: retry / escalate model
+    blocked --> pending: deps resolved
+    completed --> [*]
+```
+
+- Orchestrator always resumes by **reading the plan** and picking the **first `pending` task** whose dependencies are satisfied.  
+- Each run writes a **ReturnEnvelope** to `/state/runs/<run-id>/task-<id>.json`.  
+- Idempotency rule: Implementor must **skip** if acceptance criteria are already met.
+
+---
+
+## 4) Repository layout
+
+```
+/specs/          JSON Schemas (authoritative)
+  ├─ Prd.schema.json
+  ├─ Plan.schema.json
+  └─ ReturnEnvelope.schema.json
+
+/docs/prompts/   Agent-facing JSON-first prompts (orchestrated mode)
+  ├─ planner.prd.md
+  ├─ planner.tasks.md
+  ├─ implementor.task.md
+  ├─ reviewer.task.md
+  └─ manager.cycle.md
+
+/state/          Runtime state (gitignored)
+  ├─ plan.json                 # active plan instance
+  └─ runs/<run-id>/task-*.json # per-task ReturnEnvelopes
+
+/n8n/            Orchestrator workflows (nodes/pipelines)
+/tools/          OpenAPI tool contracts (fs, github, tests, eval)
+/scripts/        State helpers (resume, transition, GC)
+/eval/           Rubrics for semantic eval (optional)
+/sample-app/     Example target app for CI (can move to /examples/)
+```
+
+---
+
+## 5) Data model contracts (schemas)
+
+1. **PRD** → `/specs/Prd.schema.json`  
+   1.1 Machine-readable product requirements (objectives, requirements, acceptance, risks).  
+2. **Task Plan** → `/specs/Plan.schema.json`  
+   2.1 Hierarchical tasks with `depends_on`, acceptance, routing, gates.  
+3. **Return Envelope** → `/specs/ReturnEnvelope.schema.json`  
+   3.1 **Option C**: human-readable `diff` + authoritative `files[]` (base64), `tests`, `costs`, `notes`.  
+
+Agents must output **only fenced JSON** validating against these schemas.
+
+---
+
+## 6) Branch, commit, and CI policy
 
 ```mermaid
 flowchart LR
-  A[01_ingest_prd] --> B[02_plan_tasks]
-  B -->|tasks.jsonl| C[state store]
-  C --> D[03_execute_next_task]
-  D --> E[04_quality_gates]
-  E -->|pass| F[05_human_review]
-  E -->|fail| D
-  D -->|draft PR| GH[GitHub]
+    A[feature/<prd>] --> B[Per-task commits<br/>1 commit per task]
+    B --> C[PR / Branch Protection]
+    C --> D{CI Gates}
+    D -- pass --> E[Merge to main]
+    D -- fail --> F[Retry / Escalate model]
 ```
 
----
-
-## Task JSON Schema (canonical)
-
-All agent‑generated tasks must conform to [`/specs/Task.schema.json`](specs/Task.schema.json).
-
-```json
-{
-  "$id": "https://hometechhq.github.io/ai-dev-tasks/specs/Task.schema.json",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Task",
-  "type": "object",
-  "required": ["id", "title", "status", "priority", "type", "inputs", "acceptanceCriteria"],
-  "properties": {
-    "id": { "type": "string" },
-    "parentId": { "type": ["string", "null"] },
-    "title": { "type": "string" },
-    "description": { "type": "string" },
-    "status": { "type": "string", "enum": ["Planned", "InProgress", "Review", "Done", "Blocked"] },
-    "priority": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
-    "type": { "type": "string", "enum": ["Code", "Docs", "Test", "Design", "Infra", "Research", "Refactor"] },
-    "deps": { "type": "array", "items": { "type": "string" } },
-    "assignee": { "type": "string" },
-    "labels": { "type": "array", "items": { "type": "string" } },
-    "inputs": { "type": "object" },
-    "outputs": { "type": "object" },
-    "artifacts": { "type": "array", "items": { "type": "string" } },
-    "acceptanceCriteria": { "type": "array", "items": { "type": "string" } },
-    "checklist": { "type": "array", "items": { "type": "string" } }
-  },
-  "additionalProperties": false
-}
-```
-
-**Example Task**
-```json
-{
-  "id": "TASK-001",
-  "title": "Add /health endpoint",
-  "description": "Expose GET /health returning {status:'ok'}",
-  "status": "Planned",
-  "priority": "P2",
-  "type": "Code",
-  "deps": [],
-  "labels": ["backend", "api"],
-  "inputs": { "path": "/health" },
-  "outputs": {},
-  "acceptanceCriteria": ["200 OK", "JSON body includes status:'ok'"],
-  "checklist": ["unit test added", "route registered"]
-}
-```
+6.1 **One feature branch per PRD** (e.g., `feat/login-2025-08`).  
+6.2 **One commit per task**; message: `Task <id>: <title>`.  
+6.3 **Required CI gates** (GitHub Actions):  
+6.3.1 Lint, unit tests (and build if relevant).  
+6.3.2 Optional static security & semantic eval.  
+6.4 Reviewer agent (or human) must approve before merge.
 
 ---
 
-## States & transitions
+## 7) n8n orchestration notes
 
-| From       | Allowed To                    |
-|-----------|--------------------------------|
-| Planned   | InProgress, Blocked            |
-| InProgress| Review, Blocked                 |
-| Review    | Done, InProgress               |
-| Blocked   | InProgress                     |
-| Done      | —                              |
-
-Transitions are enforced by helper scripts and/or n8n nodes.
+7.1 **Manager** finds the next `pending` task (deps satisfied).  
+7.2 **Implementor** applies constrained edits and runs gates.  
+7.3 **Reviewer** validates diffs/tests and acceptance.  
+7.4 **State**: envelopes saved under `/state/runs/<run-id>/task-<id>.json`.  
+7.5 **Resilience**: safe to restart flows — the manager re-derives state from files.  
+7.6 **Model routing**: default implementor = `gpt-5-nano`; escalate to `gpt-5-mini` on failure.  
+7.7 **Budgets** (optional): plan-level `max_usd` and `max_calls` for observability/guardrails.
 
 ---
 
-## Agent Return Envelope
+## 8) Tooling & safe I/O (OpenAPI contracts)
 
-Every task execution returns a single JSON object the orchestrator can parse.  
-**Schema:** [`/specs/ReturnEnvelope.schema.json`](specs/ReturnEnvelope.schema.json)
-
-```json
-{
-  "taskId": "TASK-001",
-  "status": "InProgress | Review | Blocked | Done",
-  "actions": [
-    { "tool": "fs.write", "args": { "path": "src/health.ts", "contents": "..." }, "resultRef": "w1" },
-    { "tool": "github.pr_create", "args": { "title": "feat: health endpoint", "head": "feat/TASK-001-health", "base": "main", "body": "..." }, "resultRef": "pr1" }
-  ],
-  "artifacts": ["coverage/coverage.xml", "junit.xml"],
-  "notes": "Implemented route, added tests.",
-  "next": "If tests fail, add dependency injection to server."
-}
-```
-
-- `status` reflects post‑action state for this task.
-- `actions[].resultRef` lets later steps fetch tool outputs.
+- **fs**: read/query specific files, write patches via `files[]` from the envelope.  
+- **github**: create branches/commits/PRs, run checks.  
+- **tests**: run `pytest -q` (or project default), capture reports.  
+- **eval**: optional rubric-based semantic checks (e.g., `/eval/rubrics/basic.json`).  
+Agents **ask**; orchestrator executes — prevents unsafe shell actions.
 
 ---
 
-## Tool contracts (OpenAPI)
+## 9) Garbage collection & audit
 
-The agent doesn’t shell out. It calls **allow‑listed tools** in `/tools/*.yaml`.
-
-- `tools/github.yaml` → PRs & comments (`github.pr_create`, `github.comment_create`)
-- `tools/fs.yaml` → read/write/apply_patch
-- `tools/test.yaml` → run unit tests (produces JUnit/coverage)
-- `tools/eval.yaml` → semantic rubric checks
+9.1 Runtime artifacts in `/state/` are **gitignored** for speed.  
+9.2 At the **end of a cycle**, snapshot run summaries to `/docs/runs/<prd-id>/` (optional).  
+9.3 At the **start of the next PRD**, run `/scripts/gc-runs.mjs` to prune old `/state/runs/*`.
 
 ---
 
-## State store
+## 10) Quickstart
 
-- Location: `/state/tasks.jsonl` (newline‑delimited JSON, .gitignored)
-- Helpers:
-  - `state-upsert` → idempotently upserts tasks
-  - `state-resume` → yields next runnable task (no unmet `deps`)
-  - `state-transition` → enforces valid moves
+10.1 **Orchestrated (recommended)**  
+10.1.1 Run `planner.prd.md` → PRD JSON.  
+10.1.2 Run `planner.tasks.md` → Plan JSON (commit to `/state/plan.json`).  
+10.1.3 Start cycle with `manager.cycle.md`; it dispatches tasks.  
+10.1.4 Inspect per-task envelopes under `/state/runs/<run-id>/`.
 
----
-
-## Quality gates (CI)
-
-`.github/workflows/agent-checks.yml` runs on PRs from agent branches:
-
-- Unit tests (produce JUnit)
-- Linters/formatters
-- Coverage (Cobertura/LCOV)
-- Static checks (regex/AST)
-- Semantic eval (LLM rubric; returns strict JSON)
-
-Branch protection requires all checks to pass before merge.
+10.2 **IDE (Cursor/Claude) – human-guided**  
+10.2.1 Use root prompts: `create-prd.md`, `generate-tasks.md`, `process-task-list.md`.  
+10.2.2 See [docs/ide-usage.md](docs/ide-usage.md).  
+10.2.3 Note: JSON schemas/envelopes not enforced in this mode.
 
 ---
 
-## Budgets & rate limits
+## 11) FAQ
 
-- `config/budget.json` defines caps per model & per task
-- Retry policy: exponential backoff + jitter
-- Agents must **stop or escalate** model when caps are exceeded
+11.1 **Do I need GitHub Issues?**  
+Not required. Each PRD is its own tracked unit (branch + plan + envelopes). Issues can mirror top-level tasks for human stakeholders if desired.
 
----
+11.2 **Can multiple implementors run in parallel?**  
+Possible with careful partitioning (e.g., component-scoped tasks on sub-branches). Default is **sequential** for reliability and simpler merges.
 
-## Security & compliance
-
-- Allow‑listed tools only; **no arbitrary shell**
-- **Draft PRs** + feature branches by default
-- Least‑privilege GitHub PAT scopes
-- Secrets managed in n8n credentials vault
-- Provenance: actions + results logged per task
+11.3 **Where do costs/metrics live?**  
+Each ReturnEnvelope includes `costs` (model, tokens, $). Aggregate at run end into `/state/runs/<run-id>/summary.json`.
 
 ---
 
-## Human‑first prompts (still here!)
+## 12) Contributing
 
-Keep using:
-- `create-prd.md` → PRD
-- `generate-tasks.md` → JSON Tasks (schema above)
-- `process-task-list.md` → execute tasks, emit Return Envelope
-
-> For agents, use the JSON‑only versions in `/docs/prompts/`.
-
----
-
-## License
-
-Apache‑2.0
+- Keep JSON changes backward-compatible with `/specs` versions.  
+- Add new tool contracts under `/tools/` with clear safety limits.  
+- Extend CI gates thoughtfully; prefer fast feedback.
