@@ -166,13 +166,22 @@ Agents **ask**; orchestrator executes — prevents unsafe shell actions.
 
 ```mermaid
 flowchart LR
-    A[Per-task ReturnEnvelopes<br/>/state/runs/<id>/task-*.json] --> B[summary.json]
-    B -- snapshot option --> C[docs/runs/_latest/<id>.json]
+    A[Per-task ReturnEnvelopes<br/>/state/runs/<id>/task-*.json]:::runtime --> B[summary.json]:::runtime
+    B -- snapshot option --> C[docs/runs/_latest/<id>.json]:::durable
     B -- housekeeping.yml --> C
     A -->|gc-runs.mjs| D{GC filter<br/>older_than_days, keep_latest}
-    D -- delete --> X[(Removed)]
+    D -- delete --> X[(Removed)]:::deleted
     D -- keep --> A
+
+    classDef runtime fill:#d0e6f9,stroke:#2b6cb0,stroke-width:1px;
+    classDef durable fill:#d4f7d4,stroke:#2f855a,stroke-width:1px;
+    classDef deleted fill:#f9d0d0,stroke:#c53030,stroke-width:1px;
 ```
+
+### Legend
+- 🟦 **Runtime** (`/state/runs/...`): Ephemeral, gitignored, safe to GC.  
+- 🟩 **Durable** (`/docs/runs/_latest/...`): Snapshotted and committed for audit.  
+- 🟥 **Deleted**: Old runs pruned by `gc-runs.mjs`.
 
 ---
 
