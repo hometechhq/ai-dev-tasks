@@ -1,0 +1,88 @@
+name: Run Summaries
+
+on:
+  # 1) Manual trigger any time
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: "Commit summaries to docs/runs/_latest"
+        required: false
+        default: "false"
+  # 2) Auto-run when feature branches change (adjust as you like)
+  push:
+    branches:
+      - "feat/**"
+      - "feature/**"
+      - "prd/**"
+
+env:
+  STATE_DIR: state
+  RUNS_DIR: state/runs
+  # Set to "true" to snapshot summaries into the repo under docs/runs/_latest
+  SNAPSHOT_SUMMARIES: ${{ github.event.inputs.snapshot || 'false' }}
+
+permissions:
+  contents: write    # needed only if SNAPSHOT_SUMMARIES=true and we commit
+  actions: read
+
+jobs:
+  summarize:
+    name: Aggregate ReturnEnvelope summaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify scripts exist
+        run: |
+          test -f scripts/run-summary.mjs || (echo "Missing scripts/run-summary.mjs" && exit 1)
+
+      - name: Ensure state/runs exists (okay if empty)
+        run: mkdir -p "${{ env.RUNS_DIR }}"
+
+      - name: Generate summary.json for each run (writes into each /state/runs/<id>/)
+        run: |
+          node scripts/run-summary.mjs --state-dir "${{ env.STATE_DIR }}" --all --confirm || true
+
+      - name: Archive all summaries as artifact
+        if: always()
+        run: |
+          set -e
+          if compgen -G "${{ env.RUNS_DIR }}/*/summary.json" > /dev/null; then
+            tar -czf run-summaries.tgz -C "${{ env.STATE_DIR }}" runs
+          else
+            echo "No summaries found to archive."
+            # create an empty tar to keep the step consistent
+            tar -czf run-summaries.tgz -T /dev/null
+          fi
+
+      - name: Upload summaries artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-summaries
+          path: run-summaries.tgz
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Optional snapshot into docs/runs/_latest (commit to repo)
+        if: ${{ env.SNAPSHOT_SUMMARIES == 'true' }}
+        run: |
+          set -e
+          mkdir -p docs/runs/_latest
+          # Copy each summary.json to docs/runs/_latest/<run-id>.json
+          find "${{ env.RUNS_DIR }}" -type f -name "summary.json" | while read -r f; do
+            run_dir="$(dirname "$f")"
+            run_id="$(basename "$run_dir")"
+            cp "$f" "docs/runs/_latest/${run_id}.json"
+          done
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/runs/_latest || true
+          git commit -m "chore(summaries): snapshot run summaries into docs/runs/_latest" || echo "Nothing to commit"
+          git push || echo "Push skipped (no changes or insufficient permissions)"
