@@ -1,0 +1,125 @@
+name: Housekeeping (Summaries + GC)
+
+on:
+  # Weekly run (adjust schedule as needed)
+  schedule:
+    - cron: "0 7 * * 1"   # Every Monday 07:00 UTC
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: "Commit run summaries into docs/runs/_latest (true/false)"
+        required: false
+        default: "false"
+      older_than_days:
+        description: "GC: delete runs older than N days (0 = disabled)"
+        required: false
+        default: "30"
+      keep_latest:
+        description: "GC: number of most recent runs to always keep"
+        required: false
+        default: "2"
+      confirm_gc:
+        description: "GC: actually delete (true) or dry-run (false)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write   # needed if snapshot=true to commit docs/runs/_latest
+  actions: read
+
+env:
+  STATE_DIR: state
+  RUNS_DIR: state/runs
+  SNAPSHOT_SUMMARIES: ${{ github.event.inputs.snapshot || 'false' }}
+
+jobs:
+  housekeeping:
+    name: Summarize runs + (optional) snapshot + GC
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify scripts exist
+        run: |
+          test -f scripts/run-summary.mjs || (echo "Missing scripts/run-summary.mjs" && exit 1)
+          test -f scripts/gc-runs.mjs     || (echo "Missing scripts/gc-runs.mjs" && exit 1)
+
+      - name: Ensure state/runs exists (ok if empty)
+        run: mkdir -p "${{ env.RUNS_DIR }}"
+
+      # ---------- SUMMARIES ----------
+      - name: Generate per-run summary.json files
+        run: |
+          node scripts/run-summary.mjs --state-dir "${{ env.STATE_DIR }}" --all --confirm || true
+
+      - name: Archive summaries as artifact
+        if: always()
+        run: |
+          set -e
+          if compgen -G "${{ env.RUNS_DIR }}/*/summary.json" > /dev/null; then
+            tar -czf run-summaries.tgz -C "${{ env.STATE_DIR }}" runs
+          else
+            echo "No summaries found to archive."
+            tar -czf run-summaries.tgz -T /dev/null
+          fi
+
+      - name: Upload summaries artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-summaries
+          path: run-summaries.tgz
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Optional snapshot summaries into docs/runs/_latest
+        if: ${{ env.SNAPSHOT_SUMMARIES == 'true' }}
+        run: |
+          set -e
+          mkdir -p docs/runs/_latest
+          find "${{ env.RUNS_DIR }}" -type f -name "summary.json" | while read -r f; do
+            run_dir="$(dirname "$f")"
+            run_id="$(basename "$run_dir")"
+            cp "$f" "docs/runs/_latest/${run_id}.json"
+          done
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/runs/_latest || true
+          git commit -m "chore(housekeeping): snapshot run summaries into docs/runs/_latest" || echo "Nothing to commit"
+          git push || echo "Push skipped (no changes or insufficient permissions)"
+
+      # ---------- GARBAGE COLLECTION ----------
+      - name: Garbage collect old runs
+        run: |
+          node scripts/gc-runs.mjs \
+            --state-dir "${{ env.STATE_DIR }}" \
+            --older-than-days "${{ github.event.inputs.older_than_days || '30' }}" \
+            --keep-latest "${{ github.event.inputs.keep_latest || '2' }}" \
+            $([ "${{ github.event.inputs.confirm_gc || 'false' }}" == "true" ] && echo "--confirm" || true)
+
+      - name: Upload GC log
+        if: always()
+        run: |
+          mkdir -p gc-logs
+          echo "Run ID: $GITHUB_RUN_ID" > gc-logs/housekeeping.log
+          echo "Date: $(date -u)" >> gc-logs/housekeeping.log
+          echo "snapshot=${{ github.event.inputs.snapshot || 'false' }}" >> gc-logs/housekeeping.log
+          echo "older_than_days=${{ github.event.inputs.older_than_days || '30' }}" >> gc-logs/housekeeping.log
+          echo "keep_latest=${{ github.event.inputs.keep_latest || '2' }}" >> gc-logs/housekeeping.log
+          echo "confirm_gc=${{ github.event.inputs.confirm_gc || 'false' }}" >> gc-logs/housekeeping.log
+
+      - name: Upload housekeeping log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: housekeeping-log
+          path: gc-logs/housekeeping.log
+          retention-days: 14
