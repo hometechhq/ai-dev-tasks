@@ -162,6 +162,18 @@ Agents **ask**; orchestrator executes — prevents unsafe shell actions.
 9.2 At the **end of a cycle**, snapshot run summaries to `/docs/runs/<prd-id>/` (optional).  
 9.3 At the **start of the next PRD**, run `/scripts/gc-runs.mjs` to prune old `/state/runs/*`.
 
+### Flow (GC + Snapshot)
+
+```mermaid
+flowchart LR
+    A[Per-task ReturnEnvelopes<br/>/state/runs/<id>/task-*.json] --> B[summary.json]
+    B -- snapshot option --> C[docs/runs/_latest/<id>.json]
+    B -- housekeeping.yml --> C
+    A -->|gc-runs.mjs| D{GC filter<br/>older_than_days, keep_latest}
+    D -- delete --> X[(Removed)]
+    D -- keep --> A
+```
+
 ---
 
 ## 10) Quickstart
