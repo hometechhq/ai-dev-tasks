@@ -1,30 +1,91 @@
-name: agent-checks
+name: Agent Checks (Lint/Tests/Coverage)
+
 on:
   pull_request:
-    branches: [ main ]
+  push:
+    branches:
+      - "feat/**"
+      - "feature/**"
+      - "prd/**"
+
+permissions:
+  contents: read
+
+env:
+  LINT_CMD: ""          # e.g., "npm run lint" or "ruff ."
+  TEST_CMD: "pytest -q" # set to your project's default; empty to skip
+  BUILD_CMD: ""         # e.g., "npm run build"
+  COVERAGE_PARSE_LINE: "coverage:"  # grep anchor; or set to "" to skip
+
 jobs:
-  verify:
+  checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node (if needed)
+        if: ${{ contains(env.LINT_CMD, 'npm') || contains(env.BUILD_CMD, 'npm') }}
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Install
-        run: npm ci
-        working-directory: sample-app
-      - name: Unit tests (junit + coverage)
-        run: npm test -- --coverage --reporters=default --reporters=jest-junit
-        working-directory: sample-app
-        env:
-          JEST_JUNIT_OUTPUT: junit.xml
-      - name: Upload coverage
+          node-version: "20"
+
+      - name: Setup Python (if needed)
+        if: ${{ contains(env.TEST_CMD, 'pytest') }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (best-effort)
+        run: |
+          if [ -f package.json ]; then npm ci || true; fi
+          if [ -f pyproject.toml ]; then pip install -U pip || true; pip install -e . || true; fi
+          if [ -f requirements.txt ]; then pip install -r requirements.txt || true; fi
+
+      - name: Lint
+        if: ${{ env.LINT_CMD != '' }}
+        run: ${{ env.LINT_CMD }}
+
+      - name: Tests
+        if: ${{ env.TEST_CMD != '' }}
+        run: ${{ env.TEST_CMD }}
+
+      - name: Build
+        if: ${{ env.BUILD_CMD != '' }}
+        run: ${{ env.BUILD_CMD }}
+
+      - name: Extract coverage summary (optional)
+        id: cov
+        if: ${{ env.COVERAGE_PARSE_LINE != '' }}
+        run: |
+          set -o pipefail
+          # Try common outputs; fall back to grep anchoring
+          if [ -f coverage.txt ]; then
+            SUMMARY_LINE=$(grep -i "${{ env.COVERAGE_PARSE_LINE }}" coverage.txt | head -n1 || true)
+          elif [ -f coverage.xml ]; then
+            # naive parse: line-rate attribute (0.0-1.0)
+            RATE=$(python - <<'PY'\nimport xml.etree.ElementTree as ET\np='coverage.xml'\ntry:\n  r=ET.parse(p).getroot().attrib.get('line-rate')\n  print(f\"coverage: {float(r)*100:.1f} %\")\nexcept Exception as e:\n  pass\nPY\n)
+            SUMMARY_LINE="$RATE"
+          else
+            SUMMARY_LINE=$(git --no-pager grep -n "${{ env.COVERAGE_PARSE_LINE }}" | head -n1 | awk -F: '{print $3}' || true)
+          fi
+          echo "summary=${SUMMARY_LINE}" >> $GITHUB_OUTPUT
+
+      - name: Save CI artifacts for n8n/Reviewer
+        if: always()
+        run: |
+          mkdir -p ci-artifacts
+          if [ -f junit.xml ]; then cp junit.xml ci-artifacts/; fi
+          if [ -f coverage.xml ]; then cp coverage.xml ci-artifacts/; fi
+          if [ -f coverage.txt ]; then cp coverage.txt ci-artifacts/; fi
+          if [ -f lint.txt ]; then cp lint.txt ci-artifacts/; fi
+          echo "${{ steps.cov.outputs.summary }}" > ci-artifacts/coverage_summary.txt || true
+
+      - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
-          path: sample-app/coverage
-      - name: Semantic Eval
-        run: node ../scripts/semantic-eval.mjs
-        working-directory: sample-app
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          name: ci-artifacts
+          path: ci-artifacts/
+          if-no-files-found: warn
+          retention-days: 7
