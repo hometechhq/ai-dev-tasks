@@ -1,0 +1,279 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hometechhq.github.io/ai-dev-tasks/specs/Plan.schema.json",
+  "title": "TaskPlan",
+  "description": "Machine-readable task plan for executing a PRD via orchestrated agents. Instances of this schema are persisted in /state/plan.json for runtime, and optionally snapshotted under /docs/runs/ at cycle end.",
+  "type": "object",
+  "additionalProperties": false,
+
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semantic version of this schema.",
+      "default": "1.0.0"
+    },
+
+    "plan_id": {
+      "type": "string",
+      "description": "Stable identifier for this plan (ISO8601 timestamp or UUID)."
+    },
+
+    "prd_ref": {
+      "type": "string",
+      "description": "Path/URL reference to the PRD document used to generate this plan."
+    },
+
+    "branch": {
+      "type": "string",
+      "description": "Name of the feature branch for this PRD (one branch per PRD)."
+    },
+
+    "status": { "$ref": "#/definitions/plan_status" },
+
+    "gates": {
+      "type": "object",
+      "description": "Quality gates expected for this plan. Per-task overrides allowed via task.ci.",
+      "additionalProperties": false,
+      "properties": {
+        "lint": { "type": "boolean", "default": true },
+        "test": { "type": "boolean", "default": true },
+        "build": { "type": "boolean", "default": false },
+        "eval": { "type": "boolean", "default": false },
+        "test_command": { "type": "string", "description": "Default test command (e.g., 'pytest -q')." },
+        "lint_command": { "type": "string" },
+        "build_command": { "type": "string" },
+        "eval_config": { "type": "string", "description": "Path to semantic eval rubric/config if used." }
+      }
+    },
+
+    "routing": {
+      "type": "object",
+      "description": "Model routing preferences for planner/implementor/reviewer stages.",
+      "additionalProperties": false,
+      "properties": {
+        "planner_model": { "type": "string", "default": "gpt-5" },
+        "implementor_model": { "type": "string", "default": "gpt-5-nano" },
+        "review_model": { "type": "string" },
+        "fallback_models": { "type": "array", "items": { "type": "string" } },
+        "escalate_on_fail": { "type": "boolean", "default": true }
+      }
+    },
+
+    "budgets": {
+      "type": "object",
+      "description": "Plan-level budget constraints for observability and guardrails.",
+      "additionalProperties": false,
+      "properties": {
+        "max_usd": { "type": "number", "minimum": 0 },
+        "max_calls": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "constraints": {
+      "type": "object",
+      "description": "Optional path constraints to minimize blast-radius.",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_paths": { "type": "array", "items": { "type": "string" } },
+        "forbidden_paths": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+
+    "tasks": {
+      "type": "array",
+      "description": "Hierarchical tasks and subtasks. Each id uses dotted numbering (e.g., '1', '1.1', '2.3.1').",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/task" }
+    },
+
+    "metadata": {
+      "type": "object",
+      "description": "Provenance and versioning info.",
+      "additionalProperties": false,
+      "properties": {
+        "created_by": { "type": "string", "description": "agent:planner | human | etc." },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "version": { "type": "string" }
+      }
+    }
+  },
+
+  "required": ["schema_version", "plan_id", "status", "tasks"],
+
+  "definitions": {
+    "plan_status": {
+      "type": "string",
+      "enum": ["draft", "in_progress", "completed", "cancelled"]
+    },
+
+    "task_status": {
+      "type": "string",
+      "enum": ["pending", "in_progress", "completed", "blocked", "skipped"]
+    },
+
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "1 = highest priority"
+    },
+
+    "risk": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^\\d+(?:\\.\\d+)*$",
+          "description": "Hierarchical id (e.g., '1', '1.2', '3.1.4')."
+        },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["code", "doc", "test", "ops", "design", "analysis"],
+          "default": "code"
+        },
+        "owner": {
+          "type": "string",
+          "description": "Nominal executor (e.g., 'agent:impl', 'agent:planner', 'human')."
+        },
+        "component": { "type": "string", "description": "Logical component/module tag." },
+        "labels": { "type": "array", "items": { "type": "string" } },
+        "priority": { "$ref": "#/definitions/priority" },
+        "risk": { "$ref": "#/definitions/risk" },
+        "status": { "$ref": "#/definitions/task_status" },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^\\d+(?:\\.\\d+)*$" }
+        },
+        "acceptance": {
+          "type": "array",
+          "description": "Acceptance criteria in plain text.",
+          "items": { "type": "string" }
+        },
+        "artifacts": {
+          "type": "object",
+          "description": "Named references to specs/designs/output files.",
+          "additionalProperties": { "type": "string" }
+        },
+        "estimates": {
+          "type": "object",
+          "description": "Estimates and routing hints for this task.",
+          "additionalProperties": false,
+          "properties": {
+            "story_points": { "type": "number", "minimum": 0 },
+            "time_minutes": { "type": "number", "minimum": 0 },
+            "model": { "type": "string", "description": "Preferred model (overrides plan.routing.implementor_model)." },
+            "expected_calls": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "ci": {
+          "type": "object",
+          "description": "Per-task CI overrides.",
+          "additionalProperties": false,
+          "properties": {
+            "lint": { "type": "boolean" },
+            "test": { "type": "boolean" },
+            "build": { "type": "boolean" },
+            "eval": { "type": "boolean" },
+            "test_command": { "type": "string" },
+            "lint_command": { "type": "string" },
+            "build_command": { "type": "string" }
+          }
+        },
+        "test_command": {
+          "type": "string",
+          "description": "Optional explicit command to test this task’s outcome."
+        },
+        "output_paths": {
+          "type": "array",
+          "description": "Expected output files/paths for this task (for verification).",
+          "items": { "type": "string" }
+        },
+        "branch_override": {
+          "type": "string",
+          "description": "If set, orchestrator uses this branch instead of plan.branch."
+        },
+        "concurrency_group": {
+          "type": "string",
+          "description": "Optional grouping to enable safe parallelism among independent tasks."
+        },
+        "run_order": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Optional explicit ordering hint within the same hierarchy depth."
+        }
+      },
+      "required": ["id", "title", "description", "status"]
+    }
+  },
+
+  "examples": [
+    {
+      "schema_version": "1.0.0",
+      "plan_id": "2025-08-29T12:00:00Z",
+      "prd_ref": "docs/PRD-2025-08-login.md",
+      "branch": "feat/login-2025-08",
+      "status": "in_progress",
+      "gates": {
+        "lint": true,
+        "test": true,
+        "test_command": "pytest -q"
+      },
+      "routing": {
+        "planner_model": "gpt-5",
+        "implementor_model": "gpt-5-nano",
+        "fallback_models": ["gpt-5-mini"],
+        "escalate_on_fail": true
+      },
+      "budgets": { "max_usd": 25 },
+      "constraints": {
+        "allowed_paths": ["backend/", "docs/"],
+        "forbidden_paths": ["infra/"]
+      },
+      "tasks": [
+        {
+          "id": "1",
+          "title": "Backend login API",
+          "description": "Implement POST /auth/login with JWT.",
+          "type": "code",
+          "owner": "agent:impl",
+          "component": "backend",
+          "labels": ["auth", "backend"],
+          "priority": 2,
+          "risk": "medium",
+          "status": "pending",
+          "depends_on": [],
+          "acceptance": [
+            "200 with JWT on valid credentials",
+            "401 on invalid credentials"
+          ],
+          "artifacts": { "spec": "docs/api/auth-login.yaml" },
+          "estimates": { "model": "gpt-5-nano", "expected_calls": 2, "time_minutes": 25 },
+          "output_paths": ["backend/api/auth.py"]
+        },
+        {
+          "id": "1.1",
+          "title": "JWT utility",
+          "description": "Create token encode/verify helper.",
+          "type": "code",
+          "owner": "agent:impl",
+          "status": "pending",
+          "depends_on": ["1"]
+        }
+      ],
+      "metadata": {
+        "created_by": "agent:planner",
+        "created_at": "2025-08-29T12:00:00Z",
+        "version": "1.0.0"
+      }
+    }
+  ]
+}
