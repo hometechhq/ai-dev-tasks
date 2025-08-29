@@ -10,12 +10,12 @@ Human idea → **PRD (JSON)** → **Task Plan (JSON)** → **Implementor tasks (
 ```mermaid
 flowchart TD
     A[Human Feature Idea] -->|planner.prd.md| B[PRD JSON /specs/Prd.schema.json]
-    B -->|planner.tasks.md| C[Task Plan JSON<br/>(/specs/Plan.schema.json)]
+    B -->|planner.tasks.md| C[Task Plan JSON /specs/Plan.schema.json]
     C -->|manager.cycle.md| D{Next Pending Task?}
-    D -- yes --> E[Implementor Agent<br/>implementor.task.md]
-    E --> F[[ReturnEnvelope JSON<br/>(/specs/ReturnEnvelope.schema.json)]]
-    F --> G[Reviewer Agent<br/>reviewer.task.md]
-    G -->|approved| H[Commit per Task<br/>feature/<prd> branch]
+    D -- yes --> E[Implementor Agent implementor.task.md]
+    E --> F[[ReturnEnvelope JSON /specs/ReturnEnvelope.schema.json]]
+    F --> G[Reviewer Agent reviewer.task.md]
+    G -->|approved| H[Commit per Task feature/<prd> branch]
     G -->|needs changes| E
     D -- no --> I[Plan Completed]
     H --> J[CI Gates: lint/test/build/eval]
