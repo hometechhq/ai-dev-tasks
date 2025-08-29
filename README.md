@@ -174,7 +174,7 @@ Agents **ask**; orchestrator executes — prevents unsafe shell actions.
 
 10.2 **IDE (Cursor/Claude) – human-guided**  
 10.2.1 Use root prompts: `create-prd.md`, `generate-tasks.md`, `process-task-list.md`.  
-10.2.2 See [docs/ide-usage.md](docs/ide-usage.md).  
+10.2.2 See [ide-usage.md](ide-usage.md).  
 10.2.3 Note: JSON schemas/envelopes not enforced in this mode.
 
 ---
