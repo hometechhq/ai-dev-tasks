@@ -1,8 +1,133 @@
 {
-  "name": "Basic Quality Rubric",
+  "schema_version": "1.0.0",
+  "name": "basic",
+  "description": "Baseline rubric for AI implementor outputs: security hygiene, scope control, tests/coverage, dependency & secrets checks.",
   "checks": [
-    "Clear function names and small functions",
-    "Unit tests cover happy and error paths",
-    "No secrets or credentials committed"
-  ]
+    {
+      "id": "scope.no_unrelated_changes",
+      "severity": "medium",
+      "applies_to": ["diff"],
+      "type": "semantic",
+      "goal": "Diff should only change files required to complete the current task.",
+      "success_criteria": [
+        "All touched files are referenced in the task description, acceptance criteria, or obviously required imports/wiring.",
+        "No cosmetic-only reformatting outside changed blocks."
+      ],
+      "guidance": "If unrelated files are modified (formatting, naming), request a follow-up refactor task instead."
+    },
+    {
+      "id": "security.no_hardcoded_secrets",
+      "severity": "high",
+      "applies_to": ["diff", "files"],
+      "type": "regex_any",
+      "patterns": [
+        "(?i)api[_-]?key\\s*[:=]\\s*['\\\"][A-Za-z0-9_\\-]{16,}['\\\"]",
+        "(?i)secret\\s*[:=]\\s*['\\\"][A-Za-z0-9_\\-\\+/=]{12,}['\\\"]",
+        "(?i)aws_(access|secret)_key",
+        "(?i)private[_-]?key",
+        "BEGIN (RSA|DSA|EC) PRIVATE KEY"
+      ],
+      "exclude_paths": ["tests/fixtures/**", "**/*.md"],
+      "goal": "No hard-coded credentials or private keys land in repo."
+    },
+    {
+      "id": "security.safe_input_handling",
+      "severity": "high",
+      "applies_to": ["diff"],
+      "type": "semantic",
+      "goal": "New code that processes external input must validate/escape/parameterize.",
+      "success_criteria": [
+        "Database queries use parameterized statements/ORM methods (no string-concatenated SQL).",
+        "HTTP handlers validate payload schema and sanitize inputs."
+      ],
+      "guidance": "Flag locations lacking validation or using raw concatenation into queries or HTML."
+    },
+    {
+      "id": "security.jwt_practices",
+      "severity": "medium",
+      "applies_to": ["diff", "files"],
+      "type": "semantic",
+      "when_labels_include": ["auth", "backend"],
+      "goal": "JWT usage adheres to safe defaults.",
+      "success_criteria": [
+        "Algorithm explicitly set (HS256/RS256).",
+        "Expiry configured (e.g., ≤ 1h for access tokens).",
+        "Secret/keys come from environment or secret manager, not code."
+      ]
+    },
+    {
+      "id": "tests.present_when_requested",
+      "severity": "high",
+      "applies_to": ["envelope", "tests"],
+      "type": "metric",
+      "metric": "tests.passed",
+      "expect": true,
+      "goal": "Required tests must run and pass for this task."
+    },
+    {
+      "id": "tests.coverage_threshold",
+      "severity": "medium",
+      "applies_to": ["tests"],
+      "type": "regex_capture",
+      "pattern": "(?i)coverage[:\\s]+([0-9]+\\.?[0-9]*)\\s?%",
+      "threshold_pct": 80.0,
+      "goal": "Overall or target-path coverage ≥ 80% when coverage is reported.",
+      "guidance": "If coverage is below threshold and the task adds code paths, request more tests or justify exception."
+    },
+    {
+      "id": "licenses.no_forbidden",
+      "severity": "high",
+      "applies_to": ["diff", "files"],
+      "type": "regex_any",
+      "patterns": [
+        "(?i)license[:\\s]+GPL-3\\.0",
+        "(?i)license[:\\s]+AGPL-3\\.0"
+      ],
+      "include_paths": ["package.json", "poetry.lock", "Pipfile.lock", "requirements.txt", "Cargo.toml", "go.mod", "**/LICENSE", "**/NOTICE"],
+      "goal": "Avoid introducing strong copyleft dependencies unless explicitly approved.",
+      "guidance": "If detected, flag for human review. Permit via exception policy only."
+    },
+    {
+      "id": "paths.forbidden_write",
+      "severity": "high",
+      "applies_to": ["files"],
+      "type": "path_forbid",
+      "forbidden_paths": ["infra/**", ".github/workflows/**", "scripts/deploy/**"],
+      "goal": "Prevent accidental edits to deployment/infra without explicit tasks."
+    },
+    {
+      "id": "docs.acceptance_in_sync",
+      "severity": "medium",
+      "applies_to": ["envelope"],
+      "type": "semantic",
+      "goal": "ReturnEnvelope reflects the task’s acceptance criteria.",
+      "success_criteria": [
+        "Envelope notes/tests demonstrate each acceptance bullet or a reasoned skip.",
+        "Commit message references `Task <id>: <title>`."
+      ]
+    },
+    {
+      "id": "performance.no_obvious_anti_patterns",
+      "severity": "low",
+      "applies_to": ["diff"],
+      "type": "regex_any",
+      "patterns": [
+        "(?i)O\\(n\\^2\\)\\s+on\\s+large\\s+inputs",
+        "(?i)busy[- ]wait",
+        "(?i)time\\.sleep\\(\\d{2,}\\)"
+      ],
+      "goal": "Spot glaring perf footguns (long sleeps, quadratic loops on large inputs).",
+      "guidance": "If present in hot paths, suggest bounded retries, backoff, or streaming."
+    }
+  ],
+  "pass_policy": {
+    "fail_on_severities": ["high"],
+    "allow_if_all_high_absent": true,
+    "warn_on": ["medium", "low"]
+  },
+  "reporting": {
+    "format": "json",
+    "include_examples": true,
+    "fields": ["id", "severity", "message", "path", "line", "evidence"]
+  }
 }
