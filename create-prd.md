@@ -1,3 +1,17 @@
+# ⚠️ IDE-ONLY PROMPT (Not for Agents)
+
+> This file is for **human IDE workflows** (Cursor, Claude, etc.).  
+> For orchestrated agents (n8n), use `/docs/prompts/planner.prd.md` which produces JSON conforming to `/specs/Prd.schema.json`.
+
+---
+
+## Create PRD
+
+You are an AI coding assistant.  
+Your task is to transform a feature idea into a Product Requirement Document (PRD).  
+Ask clarifying questions first, then draft a PRD in Markdown for the human to review.
+
+
 # Create PRD (human‑first, agent‑ready)
 
 > **Who writes this?** A human or a larger model (e.g., GPT‑5).
