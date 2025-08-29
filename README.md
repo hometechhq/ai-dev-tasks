@@ -9,7 +9,7 @@ Human idea → **PRD (JSON)** → **Task Plan (JSON)** → **Implementor tasks (
 
 ```mermaid
 flowchart TD
-    A[Human Feature Idea] -->|planner.prd.md| B[PRD JSON(/specs/Prd.schema.json)]
+    A[Human Feature Idea] -->|planner.prd.md| B[PRD JSON /specs/Prd.schema.json]
     B -->|planner.tasks.md| C[Task Plan JSON<br/>(/specs/Plan.schema.json)]
     C -->|manager.cycle.md| D{Next Pending Task?}
     D -- yes --> E[Implementor Agent<br/>implementor.task.md]
