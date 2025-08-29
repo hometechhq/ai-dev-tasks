@@ -1,218 +1,75 @@
 # ⚠️ IDE-ONLY PROMPT (Not for Agents)
 
-> This file is for **human IDE workflows** (Cursor, Claude, etc.).  
-> For orchestrated agents (n8n), use `/docs/prompts/planner.prd.md` which produces JSON conforming to `/specs/Prd.schema.json`.
+> This file is for **human IDE workflows** (Cursor, Claude Code, etc.).  
+> For orchestrated agents (n8n), use `/docs/prompts/planner.prd.md` which outputs JSON conforming to `/specs/Prd.schema.json`.
 
 ---
 
-## Create PRD
+# Create PRD (Human-in-the-Loop)
 
-You are an AI coding assistant.  
-Your task is to transform a feature idea into a Product Requirement Document (PRD).  
-Ask clarifying questions first, then draft a PRD in Markdown for the human to review.
+## 1. Role
+1.1 You are an AI product planner working with a human reviewer.  
+1.2 Your job is to transform a raw feature idea into a **clear, complete, and scoped PRD** in **Markdown** for human review and edits.  
+1.3 You must ask clarifying questions before drafting if anything is ambiguous.
+1.4 Audience: Assume the PRD is being written for a Junior Developer.  Explanations should be detailed enough for someone early in their career to understand what needs to be built, why, and how it will be tested. Avoid unexplained jargon.
 
+## 2. Success Criteria
+2.1 The PRD is **complete but concise** (2–4 screens).  
+2.2 Scope is explicit; out-of-scope items are listed to avoid drift.  
+2.3 Every requirement includes **acceptance criteria**.  
+2.4 Non-functional and security/compliance notes are captured.  
+2.5 Open questions and assumptions are visible for decision-making.
 
-# Create PRD (human‑first, agent‑ready)
+## 3. Clarifying Questions (if needed)
+3.1 Ask targeted questions to resolve ambiguity in goals, constraints, data sources, and success metrics.  
+3.2 If answers are not available, record them as **assumptions** or **risks/open questions**.
 
-> **Who writes this?** A human or a larger model (e.g., GPT‑5).
->
-> **Who consumes it next?** An autonomous pipeline using **gpt‑5‑nano**.  
-> **Contract:** At the bottom, include a **Machine Appendix** that is **strict JSON** conforming to the single canonical schema:  
-> `https://hometechhq.github.io/ai-dev-tasks/specs/Prd.schema.json`
+## 4. PRD Format (Markdown)
+4.1 Title  
+4.2 Summary  
+4.3 Background / Problem Statement  
+4.4 Objectives  
+4.5 Out of Scope  
+4.6 Personas (optional)  
+4.7 Requirements  
+4.7.1 Each requirement must include acceptance criteria.  
+4.8 Non-Functional Requirements  
+4.8.1 Security  
+4.8.2 Performance  
+4.8.3 Compliance / Audit  
+4.9 Assumptions  
+4.10 Risks & Mitigations  
+4.11 Dependencies  
+4.12 Milestones (high-level)  
+4.13 Open Questions
 
----
+## 5. Requirements Section Template
+5.1 R<ID> Short Name  
+5.1.1 Description: …  
+5.1.2 Acceptance Criteria:  
+5.1.2.1 …  
+5.1.2.2 …  
+5.1.3 Notes: component(s) affected, data sources, interfaces.
 
-## Quick start (Cursor/Claude)
-Paste this to begin (or follow manually):
-> Use @create-prd.md  
-> Feature brief: [describe the feature succinctly]  
-> Repo files to reference (optional): [@path/to/file1 @path/to/file2]
+## 6. Guardrails
+6.1 Do not invent features outside the user’s stated goals; place ideas into **Open Questions** or **Later** notes.  
+6.2 Do not write or modify code.  
+6.3 Keep decisions reversible and clearly documented.
 
-**Audience:** write so a **junior developer** can implement it unassisted.
+## 7. Output Instructions
+7.1 Produce the PRD as **Markdown** only.  
+7.2 End with a line: “**Review Required:** confirm scope and acceptance before planning tasks.”  
+7.3 Stop after producing the PRD; wait for human edits/approval.
 
----
-
-## Process to generate the PRD
-
-1. **Gather inputs** — feature brief, links to relevant files/areas, product intent.
-2. **Questioning cycle** — run a structured interview (below) until ambiguity is minimized. Do **not** cap the number of questions; ask what’s needed for clarity.
-3. **Draft PRD** — fill every section in “PRD (human‑readable)” using the answers.
-4. **Tighten acceptance criteria** — make each functional requirement testable.
-5. **Complete Machine Appendix** — add a strict JSON block that conforms to the canonical schema (link above). Nano consumes only this JSON.
-6. **Validate** — run JSON schema validation; fix any errors.
-7. **Review & revise** — product/tech review; update PRD + appendix together.
-8. **Save** — `/tasks/prd-[feature-slug].md`. Signal it’s ready for tasking.
-
----
-
-## Questioning cycle (no hard limit)
-
-Work through these categories. Ask as many questions as needed to remove ambiguity. Include answers in the PRD body and reflect them in the Machine Appendix.
-
-### 1) Product & Users
-- Who is the primary user? What job are they trying to accomplish?
-- What is the single most important outcome for the user?
-- What existing flows does this change or replace?
-
-### 2) Scope & Goals
-- What must be in the first release? What can wait?
-- What are **explicit non‑goals** for this iteration?
-
-### 3) Success Metrics
-- What metrics define success (leading indicators)? Baseline and target?
-- Over what time window (e.g., 30d) should we measure?
-
-### 4) Data & Entities
-- What entities are involved (fields, types, constraints)?
-- Which fields are required vs. optional? Any enums?
-
-### 5) APIs & Integrations
-- What endpoints/methods/paths do we need? Auth scheme? Rate limits?
-- Example request/response for each new/changed endpoint?
-
-### 6) UX/Design
-- What are the states (loading/empty/error/success)? Accessibility needs?
-- Any responsive or offline behavior?
-
-### 7) Non‑Functional Requirements (NFRs)
-- Performance targets (p95/p99)? Reliability (RTO/RPO, uptime)?
-- Privacy/data retention? Internationalization/locales?
-
-### 8) Security & Privacy
-- Authn/z model (roles/permissions)? PII involved? Secrets handling?
-- Compliance or audit requirements?
-
-### 9) Risks & Edge Cases
-- What are the riskiest assumptions? How do we mitigate them?
-- Edge cases users hit often? How should the system behave?
-
-### 10) Tech Constraints & Repo Boundaries
-- Which files/dirs will change? Tech stack constraints?
-- Any dependencies or feature flags we should plan for?
-
-### 11) Rollout & Compatibility
-- Phases (internal → beta → GA)? Backward‑compat or migrations?
-- Rollback plan?
-
-### 12) Open Questions
-- What requires PO/tech‑lead decisions before implementation?
-
-> **Exit criteria for questioning:** the PRD can fill every section below with **actionable, testable** detail. If unknowns remain, list them under **Open Questions** and reflect constraints/assumptions in the appendix.
-
----
-
-## PRD (human‑readable)
-1) **Overview** – Problem and audience.  
-2) **Goals** – Numbered; each testable.  
-3) **Non‑Goals** – Out of scope for *this* iteration.  
-4) **Users & Personas** – Primary & secondary.  
-5) **User Stories** – “As a <user>, I want <capability>, so that <benefit>.” Give IDs like `US-001`.  
-6) **Functional Requirements** – Numbered “the system must …” with IDs like `FR-001`.  
-7) **Non‑Functional Requirements (NFRs)** – Perf/latency, reliability, accessibility, i18n, privacy.  
-8) **Data & APIs** – Entities (fields/types), CRUD, external API endpoints with example req/resp.  
-9) **Design/UX** – States (empty/error/loading), navigation, responsive behavior; link to mocks.  
-10) **Edge Cases & Risks** – Risk → mitigation table with IDs like `RISK-001`.  
-11) **Security & Privacy** – AuthZ model, PII classification, secrets, retention.  
-12) **Observability** – Logs/metrics/traces by **name** and success conditions.  
-13) **Success Metrics** – Baseline → target by time window (e.g., 30 days).  
-14) **Rollout Plan** – Flags, phases, migrations/backward‑compat.  
-15) **Open Questions** – Decisions pending from PO/tech lead.
-
-### Acceptance criteria (for FRs)
-Each **FR** must have one or more **testable** acceptance criteria  
-(e.g., “verified by unit test X and integration test Y; API returns 200 with schema …”).
-
----
-
-## Output & Save
-- Format: Markdown (`.md`) with a JSON appendix (below).  
-- Location: `/tasks/`  
-- Filename: `prd-[feature-slug].md`  (e.g., `prd-user-notifications.md`)
-
----
-
-## Machine Appendix (strict JSON, canonical schema)
-> Single fenced block with **only JSON**, no comments. Must conform to  
-> `https://hometechhq.github.io/ai-dev-tasks/specs/Prd.schema.json`
-
-```json
-{
-  "$schema": "https://hometechhq.github.io/ai-dev-tasks/specs/Prd.schema.json",
-  "featureName": "RENAME_ME",
-  "featureSlug": "rename-me",
-  "summary": "One-paragraph summary for non-experts.",
-  "context": "Key background and repo areas by path.",
-  "goals": ["Goal 1", "Goal 2"],
-  "nonGoals": ["What we will NOT do now"],
-  "userStories": [
-    { "id": "US-001", "story": "As a ... I want ... so that ...", "priority": "P2" }
-  ],
-  "functionalRequirements": [
-    {
-      "id": "FR-001",
-      "text": "The system must ...",
-      "acceptanceCriteria": [
-        "API returns 200 with {...}",
-        "Unit test X and integration test Y verify behavior"
-      ]
-    }
-  ],
-  "nfr": {
-    "performance": { "p95_ms": 200, "p99_ms": 500 },
-    "reliability": { "uptime_target": "99.9%", "rto_seconds": 60, "rpo_seconds": 300 },
-    "security": { "requirements": ["JWT auth", "RBAC: admin, user"] },
-    "privacy": { "dataClasses": ["email"], "retentionDays": 365 },
-    "accessibility": { "wcag": "2.1 AA" },
-    "internationalization": { "locales": ["en-US"] }
-  },
-  "data": {
-    "entities": [
-      {
-        "name": "Notification",
-        "fields": [
-          { "name": "id", "type": "uuid", "required": true },
-          { "name": "userId", "type": "uuid", "required": true },
-          { "name": "status", "type": "enum(delivered|read)", "required": true }
-        ]
-      }
-    ]
-  },
-  "apis": [
-    {
-      "name": "List notifications",
-      "method": "GET",
-      "path": "/api/notifications",
-      "auth": "JWT",
-      "rateLimitPerMin": 600,
-      "request": { "query": ["limit:int=50", "cursor:string?"] },
-      "response": { "schema": "Array<Notification>", "example": { "items": [] } }
-    }
-  ],
-  "repoPaths": [
-    { "path": "apps/web/src/pages/notifications.tsx", "purpose": "UI screen" },
-    { "path": "services/notifications", "purpose": "backend service" }
-  ],
-  "techStack": ["Next.js", "Node", "Postgres"],
-  "constraints": ["Must work on mobile", "No DB migrations > 30s"],
-  "observability": {
-    "metrics": [
-      { "name": "notifications.sent.count", "unit": "count", "successCondition": ">= 1 per trigger" }
-    ],
-    "logs": [
-      { "name": "notif.send", "level": "info" }
-    ],
-    "traces": ["notif.send"]
-  },
-  "successMetrics": [
-    { "metric": "DAU_touch_rate", "baseline": 0.0, "target": 0.15, "window": "30d" }
-  ],
-  "rolloutPlan": { "flags": ["notif_enabled"], "phases": ["internal", "beta", "ga"] },
-  "risks": [
-    { "id": "RISK-001", "risk": "Push limits", "mitigation": "Backoff & retry" }
-  ],
-  "openQuestions": ["What is max payload size?"],
-  "attachments": []
-}
-```
-
-> **Stop here — no code yet.** After review/approval, the autonomous pipeline will consume only the JSON appendix.
+## 8. Minimal Example (abridged)
+8.1 Title: Secure Login with JWT  
+8.2 Summary: Implement username/password login that returns JWT…  
+8.3 Requirements:  
+8.3.1 R1 Login API  
+8.3.1.1 Description: POST /auth/login…  
+8.3.1.2 Acceptance Criteria:  
+8.3.1.2.1 Valid creds → 200 + JWT  
+8.3.1.2.2 Invalid creds → 401  
+8.4 Non-Functional: Security: No secrets in repo, use env vars…  
+8.5 Risks: Misconfigured secret… Mitigation: rotation policy…  
+8.6 Review Required…
