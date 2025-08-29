@@ -1,72 +1,300 @@
 {
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://hometechhq.github.io/ai-dev-tasks/specs/ReturnEnvelope.schema.json",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ReturnEnvelope",
+  "description": "Structured, machine-readable result for a single task execution. Option C: includes human-readable unified diff AND authoritative files[] payload for application, plus CI results and cost/metrics.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "taskId",
-    "status",
-    "actions"
-  ],
+
   "properties": {
-    "taskId": {
-      "type": "string"
+    "schema_version": {
+      "type": "string",
+      "description": "Semantic version of this schema understood by orchestrator and agents.",
+      "default": "1.0.0"
     },
+
+    "run_id": {
+      "type": "string",
+      "description": "ISO8601 identifier for the overall run/session (e.g., PRD execution cycle)."
+    },
+
+    "task_id": {
+      "type": "string",
+      "description": "Task identifier from the plan (e.g., '1.1')."
+    },
+
     "status": {
       "type": "string",
-      "enum": [
-        "InProgress",
-        "Review",
-        "Blocked",
-        "Done"
-      ]
+      "description": "Outcome of this task attempt.",
+      "enum": ["completed", "failed", "blocked", "skipped"]
     },
-    "actions": {
+
+    "commit": {
+      "type": "object",
+      "description": "Commit/branch intent for the orchestrator to apply.",
+      "additionalProperties": false,
+      "properties": {
+        "branch": { "type": "string", "description": "Target branch for changes (feature branch per PRD)." },
+        "message": { "type": "string", "description": "Commit message describing the task/result." },
+        "allow_empty": {
+          "type": "boolean",
+          "description": "If true, orchestrator may create an empty commit when no file changes but metadata/tests still matter.",
+          "default": false
+        }
+      },
+      "required": ["branch", "message"]
+    },
+
+    "diff": {
+      "type": "string",
+      "description": "Unified diff covering all file changes for human audit/review. Orchestrator may ignore for application, but SHOULD store for audit."
+    },
+
+    "files": {
       "type": "array",
+      "description": "Authoritative file operations to apply. Orchestrator applies this list (not the diff).",
       "items": {
         "type": "object",
-        "additionalProperties": true,
-        "required": [
-          "tool",
-          "args"
-        ],
+        "additionalProperties": false,
         "properties": {
-          "tool": {
+          "path": { "type": "string", "description": "Repository-relative file path after the operation." },
+          "op": {
             "type": "string",
-            "enum": [
-              "fs.read",
-              "fs.write",
-              "fs.apply_patch",
-              "github.pr_create",
-              "github.comment_create",
-              "test.run",
-              "eval.semantic"
-            ]
+            "description": "Type of file operation.",
+            "enum": ["create", "update", "delete", "rename"]
           },
-          "args": {
-            "type": "object"
+          "content_b64": {
+            "type": "string",
+            "description": "Base64-encoded full file content AFTER the change (required for create/update)."
           },
-          "resultRef": {
-            "type": "string"
+          "prev_path": {
+            "type": "string",
+            "description": "Original path for rename operations."
           },
-          "error": {
-            "type": "string"
+          "mode": {
+            "type": "string",
+            "description": "Optional Unix mode or file kind hint (e.g., '100644', '100755', 'symlink')."
           }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "op": { "const": "create" } }, "required": ["op"] },
+            "then": { "required": ["path", "op", "content_b64"] }
+          },
+          {
+            "if": { "properties": { "op": { "const": "update" } }, "required": ["op"] },
+            "then": { "required": ["path", "op", "content_b64"] }
+          },
+          {
+            "if": { "properties": { "op": { "const": "delete" } }, "required": ["op"] },
+            "then": { "required": ["path", "op"] }
+          },
+          {
+            "if": { "properties": { "op": { "const": "rename" } }, "required": ["op"] },
+            "then": { "required": ["op", "path", "prev_path"] }
+          }
+        ]
+      }
+    },
+
+    "tests": {
+      "type": "object",
+      "description": "Test/lint/build outcomes captured during/after the task.",
+      "additionalProperties": false,
+      "properties": {
+        "command": { "type": "string", "description": "Executed test/build command (e.g., 'pytest -q')." },
+        "passed": { "type": "boolean", "description": "Overall pass/fail for required gates." },
+        "summary": { "type": "string", "description": "Human-readable summary (e.g., '12 passed, 0 failed')." },
+        "report_paths": {
+          "type": "array",
+          "description": "Paths to generated reports/artifacts checked into the repo (if any).",
+          "items": { "type": "string" }
+        },
+        "details": {
+          "type": "object",
+          "description": "Optional structured details by tool (e.g., junit, eslint, coverage). Tool-specific schemas may apply.",
+          "additionalProperties": true
         }
       }
     },
-    "artifacts": {
-      "type": "array",
-      "items": {
-        "type": "string"
+
+    "costs": {
+      "type": "object",
+      "description": "Model/cost/latency metrics for observability and routing.",
+      "additionalProperties": false,
+      "properties": {
+        "model": { "type": "string", "description": "Model used (e.g., 'gpt-5-nano')." },
+        "input_tokens": { "type": "number", "minimum": 0 },
+        "output_tokens": { "type": "number", "minimum": 0 },
+        "usd_estimate": { "type": "number", "minimum": 0 },
+        "latency_ms": { "type": "number", "minimum": 0 },
+        "tool_calls": { "type": "integer", "minimum": 0 }
       }
     },
+
     "notes": {
-      "type": "string"
+      "type": "string",
+      "description": "Free-form notes from the agent (design choices, caveats, TODOs)."
     },
-    "next": {
-      "type": "string"
+
+    "next_actions": {
+      "type": "array",
+      "description": "Optional suggestions for immediate follow-up steps (for orchestrator or reviewers).",
+      "items": { "type": "string" }
+    },
+
+    "errors": {
+      "type": "array",
+      "description": "When status != completed, structured error(s) explaining the failure/block.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": { "type": "string", "description": "Short error code (e.g., 'TESTS_FAILED', 'TOOL_TIMEOUT')." },
+          "message": { "type": "string", "description": "Human-readable description." },
+          "hint": { "type": "string", "description": "Optional remediation hint for orchestrator/escalation." }
+        },
+        "required": ["message"]
+      }
+    },
+
+    "metadata": {
+      "type": "object",
+      "description": "Provenance and environment metadata.",
+      "additionalProperties": false,
+      "properties": {
+        "created_at": { "type": "string", "format": "date-time" },
+        "agent": { "type": "string", "description": "Agent identity (e.g., 'agent:impl')." },
+        "orchestrator": { "type": "string", "description": "Orchestrator identity/version (e.g., 'n8n@1.55')." },
+        "tool_versions": {
+          "type": "object",
+          "description": "Versions of tools used (linters, test runners, etc.).",
+          "additionalProperties": { "type": "string" }
+        },
+        "plan_ref": { "type": "string", "description": "Path/URL to plan.json snapshot used for this task." }
+      }
     }
-  }
+  },
+
+  "required": ["schema_version", "run_id", "task_id", "status", "commit"],
+
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "completed" } },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["files"],
+        "properties": {
+          "tests": {
+            "properties": { "passed": { "const": true } }
+          },
+          "errors": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "enum": ["failed", "blocked"] } },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["errors"],
+        "properties": {
+          "tests": {
+            "properties": { "passed": { "const": false } }
+          }
+        }
+      }
+    }
+  ],
+
+  "examples": [
+    {
+      "schema_version": "1.0.0",
+      "run_id": "2025-08-29T12-34-56Z",
+      "task_id": "1.1",
+      "status": "completed",
+      "commit": {
+        "branch": "feat/login-2025-08",
+        "message": "Task 1.1: implement login API endpoint"
+      },
+      "diff": "diff --git a/backend/api/auth.py b/backend/api/auth.py\n--- a/backend/api/auth.py\n+++ b/backend/api/auth.py\n@@ ...\n",
+      "files": [
+        {
+          "path": "backend/api/auth.py",
+          "op": "update",
+          "content_b64": "PD9weXRob24gLi4uIG5ldyBjb250ZW50IGJhc2U2NA=="
+        },
+        {
+          "path": "backend/api/__init__.py",
+          "op": "create",
+          "content_b64": "IyBpbml0IHBhY2sK"
+        }
+      ],
+      "tests": {
+        "command": "pytest -q",
+        "passed": true,
+        "summary": "12 passed, 0 failed",
+        "report_paths": ["reports/junit.xml"],
+        "details": {
+          "coverage": { "lines_pct": 92.1 }
+        }
+      },
+      "costs": {
+        "model": "gpt-5-nano",
+        "input_tokens": 4213,
+        "output_tokens": 1532,
+        "usd_estimate": 0.012,
+        "latency_ms": 8420,
+        "tool_calls": 3
+      },
+      "notes": "Added JWT-based login; updated router wiring.",
+      "next_actions": [],
+      "metadata": {
+        "created_at": "2025-08-29T12:35:40Z",
+        "agent": "agent:impl",
+        "orchestrator": "n8n@1.55",
+        "tool_versions": { "pytest": "8.3.1" },
+        "plan_ref": "state/plan.json"
+      }
+    },
+    {
+      "schema_version": "1.0.0",
+      "run_id": "2025-08-29T12-34-56Z",
+      "task_id": "1.2",
+      "status": "failed",
+      "commit": {
+        "branch": "feat/login-2025-08",
+        "message": "Task 1.2: add unit tests for login"
+      },
+      "diff": "",
+      "files": [],
+      "tests": {
+        "command": "pytest -q",
+        "passed": false,
+        "summary": "3 failed: test_auth.py::test_login_invalid ..."
+      },
+      "errors": [
+        {
+          "code": "TESTS_FAILED",
+          "message": "Login invalid credentials test failed due to incorrect status code.",
+          "hint": "Update response for invalid creds to return 401."
+        }
+      ],
+      "costs": {
+        "model": "gpt-5-mini",
+        "input_tokens": 2100,
+        "output_tokens": 680,
+        "usd_estimate": 0.006,
+        "latency_ms": 5200
+      },
+      "metadata": {
+        "created_at": "2025-08-29T12:38:10Z",
+        "agent": "agent:impl",
+        "orchestrator": "n8n@1.55"
+      }
+    }
+  ]
 }
