@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hometechhq.github.io/ai-dev-tasks/specs/ReviewerEnvelope.schema.json",
+  "title": "ReviewerEnvelope",
+  "description": "Structured verdict from the Reviewer agent on a single task’s ReturnEnvelope + CI artifacts.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "default": "1.0.0" },
+    "task_id": { "type": "string" },
+    "verdict": { "type": "string", "enum": ["approved", "needs_changes", "rejected"] },
+    "tests_ok": { "type": "boolean" },
+    "coverage_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+    "ready_to_merge": { "type": "boolean" },
+
+    "comments": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Reviewer notes and rationale."
+    },
+
+    "security_flags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Security/compliance concerns detected."
+    },
+
+    "rubric": {
+      "type": "array",
+      "description": "Failed rubric checks (if any).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low","medium","high"] },
+          "message": { "type": "string" },
+          "path": { "type": "string" },
+          "line": { "type": "integer" },
+          "evidence": { "type": "string" }
+        },
+        "required": ["id","severity","message"]
+      }
+    },
+
+    "remediation": {
+      "type": "array",
+      "description": "Concrete, idempotent edits or sub-tasks to fix issues. Orchestrator can feed these back to Implementor.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "acceptance": { "type": "array", "items": { "type": "string" } },
+          "files": { "type": "array", "items": { "type": "string" } },
+          "patch_suggestion": {
+            "type": "string",
+            "description": "Optional unified diff (human-readable) to guide the Implementor."
+          },
+          "depends_on": { "type": "array", "items": { "type": "string" } },
+          "priority": { "type": "string", "enum": ["P0","P1","P2","P3"], "default": "P1" }
+        },
+        "required": ["title","description"]
+      }
+    },
+
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "created_at": { "type": "string", "format": "date-time" },
+        "agent": { "type": "string", "default": "agent:reviewer" },
+        "inputs": {
+          "type": "object",
+          "description": "Pointers used for review (envelope path, CI artifact URLs).",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  },
+  "required": ["schema_version","task_id","verdict","tests_ok","ready_to_merge"]
+}
