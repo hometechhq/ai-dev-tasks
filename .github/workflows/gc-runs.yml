@@ -1,0 +1,67 @@
+name: Garbage Collect Runs
+
+on:
+  # Weekly dry-run report
+  schedule:
+    - cron: "0 7 * * 1"   # every Monday 07:00 UTC
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      older_than_days:
+        description: "Delete runs older than N days"
+        required: false
+        default: "30"
+      keep_latest:
+        description: "Number of most recent runs to always keep"
+        required: false
+        default: "2"
+      confirm:
+        description: "Actually delete (true) or dry-run (false)?"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  gc-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verify gc script exists
+        run: |
+          test -f scripts/gc-runs.mjs || (echo "Missing scripts/gc-runs.mjs" && exit 1)
+
+      - name: Garbage collect runs
+        run: |
+          node scripts/gc-runs.mjs \
+            --state-dir ./state \
+            --older-than-days "${{ github.event.inputs.older_than_days || '30' }}" \
+            --keep-latest "${{ github.event.inputs.keep_latest || '2' }}" \
+            $([ "${{ github.event.inputs.confirm || 'false' }}" == "true" ] && echo "--confirm" || true)
+
+      - name: Archive dry-run log
+        if: always()
+        run: |
+          mkdir -p gc-logs
+          echo "Run ID: $GITHUB_RUN_ID" > gc-logs/gc.log
+          echo "Date: $(date -u)" >> gc-logs/gc.log
+          echo "Inputs:" >> gc-logs/gc.log
+          echo "  older_than_days=${{ github.event.inputs.older_than_days || '30' }}" >> gc-logs/gc.log
+          echo "  keep_latest=${{ github.event.inputs.keep_latest || '2' }}" >> gc-logs/gc.log
+          echo "  confirm=${{ github.event.inputs.confirm || 'false' }}" >> gc-logs/gc.log
+
+      - name: Upload gc logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gc-runs-log
+          path: gc-logs/gc.log
+          retention-days: 14
